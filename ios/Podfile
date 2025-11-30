@@ -1,4 +1,4 @@
-# iOS Platform Sürümünü Buradan Ayarlıyoruz
+# iOS Platform Sürümü
 platform :ios, '14.0'
 
 # CocoaPods analytics sends network stats synchronously affecting flutter build latency.
@@ -37,14 +37,24 @@ post_install do |installer|
     flutter_additional_ios_build_settings(target)
   end
 
-  # --- TEAM ID VE SÜRÜM AYARI (CODEMAGIC DÜZELTMESİ) ---
+  # --- CODEMAGIC İÇİN ZORUNLU İMZALAMA AYARLARI ---
   installer.generated_projects.each do |project|
     project.targets.each do |target|
       target.build_configurations.each do |config|
+        # 1. Hedef Sürüm
         config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '14.0'
-        config.build_settings['DEVELOPMENT_TEAM'] = 'ZN3B6FK55W' # Eklenen Team ID
+        
+        # 2. Team ID (Senin ID'n)
+        config.build_settings['DEVELOPMENT_TEAM'] = 'ZN3B6FK55W'
+        
+        # 3. Sadece RELEASE modunda Dağıtım Sertifikasını Zorla
+        if config.name == 'Release'
+          config.build_settings['CODE_SIGN_IDENTITY'] = 'iPhone Distribution'
+          config.build_settings['CODE_SIGN_STYLE'] = 'Manual'
+          config.build_settings['PROVISIONING_PROFILE_SPECIFIER'] = '' # Codemagic dolduracak
+        end
       end
     end
   end
-  # -----------------------------------------------------
+  # ------------------------------------------------
 end
