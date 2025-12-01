@@ -7,6 +7,25 @@
   "client": [
     {
       "client_info": {
+        "mobilesdk_app_id": "1:929852331620:android:aad6c260e92744332a7171",
+        "android_client_info": {
+          "package_name": "com.erhanorakci.yenibiryorum"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB8rhgYZDHpOtuwXYUyRfs2icgWgtUxVvQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
         "mobilesdk_app_id": "1:929852331620:android:6eab9115c9dafa3e2a7171",
         "android_client_info": {
           "package_name": "com.example.yorum_platformu"
