@@ -1,3 +1,4 @@
+import 'dart:io'; // Platform kontrolü için gerekli
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -7,16 +8,42 @@ import 'screens/home/home_screen.dart';
 import 'screens/auth/login_screen.dart';
 
 void main() async {
-  // <--- 1. DEĞİŞİKLİK: async eklendi
-  // Hataları yakalamak için önce uygulamayı başlatıyoruz
   WidgetsFlutterBinding.ensureInitialized();
 
-  // 2. DEĞİŞİKLİK: Firebase'i burada başlatıp bitmesini bekliyoruz (await)
-  await Firebase.initializeApp();
+  try {
+    // BURASI ÇOK ÖNEMLİ: iOS ise ayarları elle veriyoruz, Android ise otomatiktir.
+    if (Platform.isIOS) {
+      await Firebase.initializeApp(
+        name: "YorumPlatformuIOS", // Özel bir isim veriyoruz çakışmasın diye
+        options: const FirebaseOptions(
+          apiKey: 'AIzaSyCr3d9xsVRaS_2njjo2ZG1dj0lKD94smUg',
+          appId: '1:929852331620:ios:eb0ae4d7413f08242a7171',
+          messagingSenderId: '929852331620',
+          projectId: 'yenibiryorum-fe0e8',
+          storageBucket: 'yenibiryorum-fe0e8.firebasestorage.app',
+          iosBundleId: 'com.erhanorakci.yenibiryorum',
+        ),
+      );
+    } else {
+      // Android için standart başlatma (google-services.json'dan okur)
+      await Firebase.initializeApp();
+    }
 
-  runApp(const YorumUygulamasi());
+    // Bildirim servisini başlat (Hata verirse uygulamayı durdurmasın)
+    try {
+      await BildirimServisi().baslat();
+    } catch (e) {
+      print("Bildirim servisi hatası: $e");
+    }
+
+    runApp(const YorumUygulamasi());
+  } catch (e) {
+    // Hata durumunda Kırmızı Ekranı göster
+    runApp(BaslatmaHatasiUygulamasi(hataMesaji: e.toString()));
+  }
 }
 
+// --- BAŞARILI DURUM UYGULAMASI ---
 class YorumUygulamasi extends StatelessWidget {
   const YorumUygulamasi({super.key});
 
@@ -31,104 +58,12 @@ class YorumUygulamasi extends StatelessWidget {
         fontFamily: 'Arial',
         colorScheme: ColorScheme.fromSeed(seedColor: kAnaRenk),
       ),
-      // Uygulama açılınca direkt Başlatıcıyı çağırıyoruz
-      home: const UygulamaBaslatici(),
+      home: const YetkiKontrolu(),
     );
   }
 }
 
-class UygulamaBaslatici extends StatefulWidget {
-  const UygulamaBaslatici({super.key});
-
-  @override
-  State<UygulamaBaslatici> createState() => _UygulamaBaslaticiState();
-}
-
-class _UygulamaBaslaticiState extends State<UygulamaBaslatici> {
-  // Not: main içinde başlattığımız için burası artık anında tamamlanacaktır.
-  final Future<FirebaseApp> _initialization = Firebase.initializeApp();
-
-  @override
-  void initState() {
-    super.initState();
-    // Bildirim servisini başlatmayı deniyoruz
-    // (Artık main'de Firebase başladığı için burası hata vermez)
-    _bildirimleriBaslat();
-  }
-
-  Future<void> _bildirimleriBaslat() async {
-    try {
-      await BildirimServisi().baslat();
-    } catch (e) {
-      print("Bildirim hatası: $e");
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return FutureBuilder(
-      future: _initialization,
-      builder: (context, snapshot) {
-        // 1. Hata Varsa (Gri ekran yerine kırmızı hata ekranı gösterir)
-        if (snapshot.hasError) {
-          return Scaffold(
-            body: Center(
-              child: Padding(
-                padding: const EdgeInsets.all(20.0),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Icon(
-                      Icons.error_outline,
-                      color: Colors.red,
-                      size: 50,
-                    ),
-                    const SizedBox(height: 20),
-                    const Text(
-                      "Başlatma Hatası",
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    Text(
-                      "Hata Detayı:\n${snapshot.error}",
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(color: Colors.grey),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          );
-        }
-
-        // 2. Bağlantı Tamamlandıysa (Ana ekrana yönlendir)
-        if (snapshot.connectionState == ConnectionState.done) {
-          return const YetkiKontrolu();
-        }
-
-        // 3. Bekleniyorsa (Yükleniyor göstergesi)
-        return const Scaffold(
-          backgroundColor: Colors.white,
-          body: Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                CircularProgressIndicator(),
-                SizedBox(height: 20),
-                Text("Yorum Dünyası Başlatılıyor..."),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
-}
-
-// Giriş yapmış mı kontrol eden katman
+// --- GİRİŞ KONTROLÜ ---
 class YetkiKontrolu extends StatelessWidget {
   const YetkiKontrolu({super.key});
 
@@ -142,10 +77,55 @@ class YetkiKontrolu extends StatelessWidget {
             body: Center(child: CircularProgressIndicator()),
           );
         }
-        // Kullanıcı giriş yapmışsa veya yapmamışsa Ana Sayfaya atıyoruz.
-        // (Giriş yapmamışsa AnaSayfa içinde login'e yönlendirme mantığın vardır muhtemelen)
         return const AnaSayfa();
       },
+    );
+  }
+}
+
+// --- HATA DURUMU UYGULAMASI ---
+class BaslatmaHatasiUygulamasi extends StatelessWidget {
+  final String hataMesaji;
+  const BaslatmaHatasiUygulamasi({super.key, required this.hataMesaji});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      home: Scaffold(
+        backgroundColor: Colors.white,
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(30.0),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.error_outline, color: Colors.red, size: 80),
+                const SizedBox(height: 20),
+                const Text(
+                  "Uygulama Başlatılamadı",
+                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 20),
+                Container(
+                  padding: const EdgeInsets.all(15),
+                  decoration: BoxDecoration(
+                    color: Colors.grey[200],
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: Colors.red.withOpacity(0.3)),
+                  ),
+                  child: Text(
+                    hataMesaji,
+                    style: const TextStyle(color: Colors.red, fontSize: 13),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
