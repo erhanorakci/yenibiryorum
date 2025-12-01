@@ -10,6 +10,11 @@
         <string>Video kaydı yapabilmek için mikrofona erişim izni gerekiyor.</string>
         <key>NSLocationWhenInUseUsageDescription</key>
         <string>Haritada konumunuzu görebilmeniz için izin gerekiyor.</string>
+        
+        <key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+        <string>Uygulama, size daha iyi hizmet verebilmek ve harita özelliklerini tam kullanabilmek için konumunuza ihtiyaç duyar.</string>
+        <key>NSLocationAlwaysUsageDescription</key>
+        <string>Uygulama, size daha iyi hizmet verebilmek için arka planda da konumunuza ihtiyaç duyabilir.</string>
         <key>CFBundleDevelopmentRegion</key>
         <string>$(DEVELOPMENT_LANGUAGE)</string>
         <key>CFBundleDisplayName</key>
