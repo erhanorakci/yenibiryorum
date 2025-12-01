@@ -1,4 +1,4 @@
-package com.example.yorum_platformu
+package com.erhanorakci.yenibiryorum.com
 
 import io.flutter.embedding.android.FlutterActivity
 
