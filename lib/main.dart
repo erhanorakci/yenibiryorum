@@ -6,9 +6,14 @@ import 'core/notification_service.dart';
 import 'screens/home/home_screen.dart';
 import 'screens/auth/login_screen.dart';
 
-void main() {
+void main() async {
+  // <--- 1. DEĞİŞİKLİK: async eklendi
   // Hataları yakalamak için önce uygulamayı başlatıyoruz
   WidgetsFlutterBinding.ensureInitialized();
+
+  // 2. DEĞİŞİKLİK: Firebase'i burada başlatıp bitmesini bekliyoruz (await)
+  await Firebase.initializeApp();
+
   runApp(const YorumUygulamasi());
 }
 
@@ -40,13 +45,14 @@ class UygulamaBaslatici extends StatefulWidget {
 }
 
 class _UygulamaBaslaticiState extends State<UygulamaBaslatici> {
-  // Firebase başlatma durumunu yöneten değişken
+  // Not: main içinde başlattığımız için burası artık anında tamamlanacaktır.
   final Future<FirebaseApp> _initialization = Firebase.initializeApp();
 
   @override
   void initState() {
     super.initState();
-    // Bildirim servisini başlatmayı deniyoruz (Hata verirse uygulamayı durdurmaz)
+    // Bildirim servisini başlatmayı deniyoruz
+    // (Artık main'de Firebase başladığı için burası hata vermez)
     _bildirimleriBaslat();
   }
 
@@ -137,7 +143,7 @@ class YetkiKontrolu extends StatelessWidget {
           );
         }
         // Kullanıcı giriş yapmışsa veya yapmamışsa Ana Sayfaya atıyoruz.
-        // (İstersen snapshot.hasData yoksa GirisEkrani() yapabilirsin)
+        // (Giriş yapmamışsa AnaSayfa içinde login'e yönlendirme mantığın vardır muhtemelen)
         return const AnaSayfa();
       },
     );
