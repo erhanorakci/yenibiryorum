@@ -1,4 +1,5 @@
-import 'dart:io'; // Platform kontrolü için gerekli
+import 'dart:async';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -7,48 +8,139 @@ import 'core/notification_service.dart';
 import 'screens/home/home_screen.dart';
 import 'screens/auth/login_screen.dart';
 
-void main() async {
-  WidgetsFlutterBinding.ensureInitialized();
-
-  try {
-    // BURASI ÇOK ÖNEMLİ: iOS ise ayarları elle veriyoruz, Android ise otomatiktir.
-    if (Platform.isIOS) {
-      await Firebase.initializeApp(
-        name: "YorumPlatformuIOS", // Özel bir isim veriyoruz çakışmasın diye
-        options: const FirebaseOptions(
-          apiKey: 'AIzaSyCr3d9xsVRaS_2njjo2ZG1dj0lKD94smUg',
-          appId: '1:929852331620:ios:eb0ae4d7413f08242a7171',
-          messagingSenderId: '929852331620',
-          projectId: 'yenibiryorum-fe0e8',
-          storageBucket: 'yenibiryorum-fe0e8.firebasestorage.app',
-          iosBundleId: 'com.erhanorakci.yenibiryorum',
-        ),
-      );
-    } else {
-      // Android için standart başlatma (google-services.json'dan okur)
-      await Firebase.initializeApp();
-    }
-
-    // Bildirim servisini başlat (Hata verirse uygulamayı durdurmasın)
-    try {
-      await BildirimServisi().baslat();
-    } catch (e) {
-      print("Bildirim servisi hatası: $e");
-    }
-
-    runApp(const YorumUygulamasi());
-  } catch (e) {
-    // Hata durumunda Kırmızı Ekranı göster
-    runApp(BaslatmaHatasiUygulamasi(hataMesaji: e.toString()));
-  }
+void main() {
+  // Hataları yakalamak için ZoneGuarded yapısı
+  runZonedGuarded(
+    () async {
+      WidgetsFlutterBinding.ensureInitialized();
+      runApp(const YorumUygulamasi());
+    },
+    (error, stack) {
+      print("🛑 Global Hata: $error");
+    },
+  );
 }
 
-// --- BAŞARILI DURUM UYGULAMASI ---
-class YorumUygulamasi extends StatelessWidget {
+class YorumUygulamasi extends StatefulWidget {
   const YorumUygulamasi({super.key});
 
   @override
+  State<YorumUygulamasi> createState() => _YorumUygulamasiState();
+}
+
+class _YorumUygulamasiState extends State<YorumUygulamasi> {
+  // Başlangıç durumunu kontrol eden değişkenler
+  bool _isInitialized = false;
+  String _statusMessage = "Uygulama Başlatılıyor...";
+  bool _hasError = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _baslat();
+  }
+
+  Future<void> _baslat() async {
+    try {
+      // 1. FIREBASE BAŞLATMA (iOS İÇİN MANUEL AYAR)
+      if (Platform.isIOS) {
+        await Firebase.initializeApp(
+          options: const FirebaseOptions(
+            apiKey: "AIzaSyCr3d9xsVRaS_2njjo2ZG1dj0lKD94smUg", // iOS API Key
+            appId: "1:929852331620:ios:eb0ae4d7413f08242a7171", // iOS App ID
+            messagingSenderId: "929852331620",
+            projectId: "yenibiryorum-fe0e8",
+            storageBucket: "yenibiryorum-fe0e8.firebasestorage.app",
+            iosBundleId: "com.erhanorakci.yenibiryorum",
+          ),
+        );
+      } else {
+        // Android ve diğerleri için otomatk (google-services.json'dan)
+        await Firebase.initializeApp();
+      }
+
+      setState(() => _statusMessage = "Bildirimler ayarlanıyor...");
+
+      // 2. BİLDİRİM SERVİSİ
+      try {
+        await BildirimServisi().baslat();
+      } catch (e) {
+        print("Bildirim hatası (Önemsiz): $e");
+      }
+
+      // Her şey yolunda
+      setState(() {
+        _isInitialized = true;
+      });
+    } catch (e) {
+      // Kritik Hata Durumu
+      print("🔥 BAŞLATMA HATASI: $e");
+      setState(() {
+        _hasError = true;
+        _statusMessage = "Hata: $e";
+      });
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    // Eğer hata varsa Kırmızı Ekran göster (Beyaz ekranda kalmasın)
+    if (_hasError) {
+      return MaterialApp(
+        debugShowCheckedModeBanner: false,
+        home: Scaffold(
+          backgroundColor: Colors.white,
+          body: Padding(
+            padding: const EdgeInsets.all(30.0),
+            child: Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.error_outline, color: Colors.red, size: 60),
+                  const SizedBox(height: 20),
+                  const Text(
+                    "Başlatılamadı",
+                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 10),
+                  Text(
+                    _statusMessage,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(color: Colors.grey),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    // Eğer henüz hazır değilse Loading göster
+    if (!_isInitialized) {
+      return MaterialApp(
+        debugShowCheckedModeBanner: false,
+        home: Scaffold(
+          backgroundColor: Colors.white, // Veya kAnaRenk
+          body: Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                // Logo varsa buraya Image.asset ekleyebilirsin
+                const CircularProgressIndicator(),
+                const SizedBox(height: 20),
+                Text(
+                  _statusMessage,
+                  style: const TextStyle(color: Colors.grey),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    // Her şey hazırsa asıl uygulamayı göster
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       title: 'Yorum Platformu',
@@ -63,10 +155,9 @@ class YorumUygulamasi extends StatelessWidget {
   }
 }
 
-// --- GİRİŞ KONTROLÜ ---
+// Giriş Kontrolü
 class YetkiKontrolu extends StatelessWidget {
   const YetkiKontrolu({super.key});
-
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<User?>(
@@ -77,55 +168,9 @@ class YetkiKontrolu extends StatelessWidget {
             body: Center(child: CircularProgressIndicator()),
           );
         }
+        // İsteğe bağlı: Giriş zorunlu değilse direkt AnaSayfa
         return const AnaSayfa();
       },
-    );
-  }
-}
-
-// --- HATA DURUMU UYGULAMASI ---
-class BaslatmaHatasiUygulamasi extends StatelessWidget {
-  final String hataMesaji;
-  const BaslatmaHatasiUygulamasi({super.key, required this.hataMesaji});
-
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      debugShowCheckedModeBanner: false,
-      home: Scaffold(
-        backgroundColor: Colors.white,
-        body: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(30.0),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Icon(Icons.error_outline, color: Colors.red, size: 80),
-                const SizedBox(height: 20),
-                const Text(
-                  "Uygulama Başlatılamadı",
-                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 20),
-                Container(
-                  padding: const EdgeInsets.all(15),
-                  decoration: BoxDecoration(
-                    color: Colors.grey[200],
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: Colors.red.withOpacity(0.3)),
-                  ),
-                  child: Text(
-                    hataMesaji,
-                    style: const TextStyle(color: Colors.red, fontSize: 13),
-                    textAlign: TextAlign.center,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
     );
   }
 }
