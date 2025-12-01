@@ -2,7 +2,7 @@ name: yorum_platformu
 description: "A new Flutter project."
 publish_to: 'none'
 
-version: 1.0.0+3
+version: 1.0.0+4
 
 environment:
   sdk: '>=3.10.1 <4.0.0'
@@ -62,7 +62,8 @@ flutter:
 flutter_launcher_icons:
   android: "launcher_icon"
   ios: true
-  image_path: "assets/icon/app_icon.png"
+  image_path: "assets/icon/app_icon.png"         # Android bunu kullanır (Şeffaf olabilir)
+  image_path_ios: "assets/icon/app_icon_ios.png" # iOS bunu kullanır (Arkası MUTLAKA DOLU olmalı)
   min_sdk_android: 21
 
 # --- AÇILIŞ EKRANI (SPLASH) AYARLARI ---
