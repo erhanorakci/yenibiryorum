@@ -163,7 +163,7 @@ class _YorumUygulamasiState extends State<YorumUygulamasi> {
     // Her şey hazırsa asıl uygulamayı göster
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      title: 'Yorum Platformu',
+      title: 'Yeni Bir Yorum',
       theme: ThemeData(
         scaffoldBackgroundColor: kArkaPlan,
         useMaterial3: true,
