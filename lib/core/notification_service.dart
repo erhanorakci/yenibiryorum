@@ -12,17 +12,14 @@ import 'package:http/http.dart' as http;
 // 1. TOP-LEVEL FONKSİYONLAR (SINIFIN DIŞINDA)
 // ==================================================
 
-// Arka Plan İşleyicisi
 @pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   await Firebase.initializeApp();
   await _bildirimiVeritabaninaKaydet(message);
 }
 
-// Veritabanı Kayıt Fonksiyonu (Hem arka hem ön planda erişilebilmesi için dışarıda)
 Future<void> _bildirimiVeritabaninaKaydet(RemoteMessage message) async {
   if (message.notification == null) return;
-
   User? user = FirebaseAuth.instance.currentUser;
   if (user == null) return;
 
@@ -66,14 +63,13 @@ Future<void> _bildirimiVeritabaninaKaydet(RemoteMessage message) async {
 }
 
 // ==================================================
-// 2. BİLDİRİM SERVİSİ SINIFI (CLASS)
+// 2. BİLDİRİM SERVİSİ SINIFI
 // ==================================================
 class BildirimServisi {
   final FirebaseMessaging _firebaseMessaging = FirebaseMessaging.instance;
   final FlutterLocalNotificationsPlugin _localNotificationsPlugin =
       FlutterLocalNotificationsPlugin();
 
-  // Kanal Tanımı
   final AndroidNotificationChannel _channel = const AndroidNotificationChannel(
     'yorum_platformu_channel',
     'Genel Bildirimler',
@@ -84,7 +80,7 @@ class BildirimServisi {
   );
 
   Future<void> baslat() async {
-    // --- 1. İZİN İSTE (iOS) ---
+    // 1. İzin İste
     NotificationSettings settings = await _firebaseMessaging.requestPermission(
       alert: true,
       badge: true,
@@ -98,9 +94,15 @@ class BildirimServisi {
       return;
     }
 
+    // --- ÖNEMLİ DEĞİŞİKLİK: TOPIC ABONELİĞİ ---
+    // Uygulamayı açan herkesi "genel" duyuru kanalına ekle
+    await _firebaseMessaging.subscribeToTopic("genel");
+    print("✅ 'genel' bildirim kanalına abone olundu.");
+    // ------------------------------------------
+
     await _tokeniGuncelle();
 
-    // --- 2. YEREL BİLDİRİM KURULUMU ---
+    // 2. Yerel Bildirim Kurulumu
     const AndroidInitializationSettings initializationSettingsAndroid =
         AndroidInitializationSettings('@drawable/notification_icon');
 
@@ -119,7 +121,6 @@ class BildirimServisi {
 
     await _localNotificationsPlugin.initialize(initializationSettings);
 
-    // Kanal Oluştur (Android)
     if (Platform.isAndroid) {
       await _localNotificationsPlugin
           .resolvePlatformSpecificImplementation<
@@ -128,30 +129,24 @@ class BildirimServisi {
           ?.createNotificationChannel(_channel);
     }
 
-    // iOS Ön Plan Ayarı
     await _firebaseMessaging.setForegroundNotificationPresentationOptions(
       alert: true,
       badge: true,
       sound: true,
     );
 
-    // Handler'lar
     FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
 
     FirebaseMessaging.onMessage.listen((RemoteMessage message) {
       if (message.notification != null) {
-        // Ön planda olduğumuz için manuel gösteriyoruz
         if (Platform.isAndroid) {
           _yerelBildirimGoster(message);
         }
-        // Kaydet
         _bildirimiVeritabaninaKaydet(message);
       }
     });
   }
 
-  // --- YEREL BİLDİRİM GÖSTERME FONKSİYONU ---
-  // (Bu fonksiyon Sınıfın İÇİNDE olmalı ki _localNotificationsPlugin'e erişebilsin)
   Future<void> _yerelBildirimGoster(RemoteMessage message) async {
     String? imageUrl =
         message.notification?.android?.imageUrl ?? message.data['image'];
@@ -190,7 +185,7 @@ class BildirimServisi {
           _channel.name,
           channelDescription: _channel.description,
           icon: '@drawable/notification_icon',
-          color: const Color(0xFFFF0000), // İkon Rengi
+          color: const Color(0xFFFF0000),
           importance: Importance.max,
           priority: Priority.high,
           styleInformation: styleInformation,
