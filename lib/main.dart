@@ -1,5 +1,6 @@
 import 'dart:async';
-import 'dart:io';
+import 'dart:io'; // Platform kontrolü (Sadece mobilde çalışır, web'de kIsWeb kullanılır)
+import 'package:flutter/foundation.dart'; // kIsWeb için gerekli
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -42,8 +43,23 @@ class _YorumUygulamasiState extends State<YorumUygulamasi> {
 
   Future<void> _baslat() async {
     try {
-      // 1. FIREBASE BAŞLATMA (iOS İÇİN MANUEL AYAR)
-      if (Platform.isIOS) {
+      // --- 1. FIREBASE BAŞLATMA (PLATFORMA GÖRE AKILLI AYAR) ---
+
+      if (kIsWeb) {
+        // *** WEB İÇİN (Firebase Konsolundan aldığın 'const firebaseConfig' bilgileri) ***
+        await Firebase.initializeApp(
+          options: const FirebaseOptions(
+            apiKey: "AIzaSyCm8XhSZD941_YFbEbqNIR24nIPk-U7qWg",
+            authDomain: "yenibiryorum-fe0e8.firebaseapp.com",
+            projectId: "yenibiryorum-fe0e8",
+            storageBucket: "yenibiryorum-fe0e8.firebasestorage.app",
+            messagingSenderId: "929852331620",
+            appId: "1:929852331620:web:a3f819a280a2a54e2a7171",
+          ),
+        );
+      }
+      // *** iOS İÇİN (Manuel Ayar - Zaten vardı, korundu) ***
+      else if (Platform.isIOS) {
         await Firebase.initializeApp(
           options: const FirebaseOptions(
             apiKey: "AIzaSyCr3d9xsVRaS_2njjo2ZG1dj0lKD94smUg", // iOS API Key
@@ -54,18 +70,22 @@ class _YorumUygulamasiState extends State<YorumUygulamasi> {
             iosBundleId: "com.erhanorakci.yenibiryorum",
           ),
         );
-      } else {
-        // Android ve diğerleri için otomatk (google-services.json'dan)
+      }
+      // *** ANDROID İÇİN (Otomatik - google-services.json'dan okur) ***
+      else {
         await Firebase.initializeApp();
       }
+      // -----------------------------------------------------------
 
       setState(() => _statusMessage = "Bildirimler ayarlanıyor...");
 
-      // 2. BİLDİRİM SERVİSİ
-      try {
-        await BildirimServisi().baslat();
-      } catch (e) {
-        print("Bildirim hatası (Önemsiz): $e");
+      // 2. BİLDİRİM SERVİSİ (Sadece Mobilde çalıştır, Web'de hata verir)
+      if (!kIsWeb) {
+        try {
+          await BildirimServisi().baslat();
+        } catch (e) {
+          print("Bildirim hatası (Önemsiz): $e");
+        }
       }
 
       // Her şey yolunda

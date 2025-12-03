@@ -1,33 +1,35 @@
+import 'dart:io';
+import 'dart:typed_data';
+import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:flutter/material.dart'; // Renkler için
 import 'package:http/http.dart' as http;
-import 'dart:typed_data';
 
-// --- ARKA PLAN İŞLEYİCİSİ (Sadece DB'ye kaydeder, bildirim göstermez - Çift bildirimi engeller) ---
+// ==================================================
+// 1. TOP-LEVEL FONKSİYONLAR (SINIFIN DIŞINDA)
+// ==================================================
+
+// Arka Plan İşleyicisi
 @pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   await Firebase.initializeApp();
-  // Arka planda bildirim gösterme komutu YOK, sadece kayıt var.
   await _bildirimiVeritabaninaKaydet(message);
 }
 
-// --- VERİTABANI KAYIT FONKSİYONU (Aynı ID kontrolü ile) ---
+// Veritabanı Kayıt Fonksiyonu (Hem arka hem ön planda erişilebilmesi için dışarıda)
 Future<void> _bildirimiVeritabaninaKaydet(RemoteMessage message) async {
   if (message.notification == null) return;
 
   User? user = FirebaseAuth.instance.currentUser;
   if (user == null) return;
 
-  // Benzersiz ID oluştur
   String uniqueId =
       message.messageId ??
       "${message.notification?.title}_${message.notification?.body}_${message.sentTime}";
 
-  // Çift kayıt kontrolü
   var sorgu = await FirebaseFirestore.instance
       .collection('kullanicilar')
       .doc(user.uid)
@@ -35,17 +37,13 @@ Future<void> _bildirimiVeritabaninaKaydet(RemoteMessage message) async {
       .where('messageId', isEqualTo: uniqueId)
       .get();
 
-  if (sorgu.docs.isNotEmpty) {
-    return; // Zaten varsa kaydetme
-  }
+  if (sorgu.docs.isNotEmpty) return;
 
-  // Kayıt işlemi
   String baslik = message.notification?.title ?? "Bildirim";
   String icerik = message.notification?.body ?? "";
   String? imageUrl =
       message.notification?.android?.imageUrl ?? message.data['image'];
 
-  // Hedef ID verilerini al (Tıklama yönlendirmesi için)
   String? mekanId = message.data['mekanId'];
   String? hedefId = message.data['hedefId'];
   String? hedefBaslik = message.data['hedefBaslik'];
@@ -61,13 +59,15 @@ Future<void> _bildirimiVeritabaninaKaydet(RemoteMessage message) async {
         'tarih': FieldValue.serverTimestamp(),
         'okundu': false,
         'resimUrl': imageUrl,
-        // Yönlendirme verilerini de kaydediyoruz
         'mekanId': mekanId,
         'hedefId': hedefId,
         'hedefBaslik': hedefBaslik,
       });
 }
 
+// ==================================================
+// 2. BİLDİRİM SERVİSİ SINIFI (CLASS)
+// ==================================================
 class BildirimServisi {
   final FirebaseMessaging _firebaseMessaging = FirebaseMessaging.instance;
   final FlutterLocalNotificationsPlugin _localNotificationsPlugin =
@@ -75,7 +75,7 @@ class BildirimServisi {
 
   // Kanal Tanımı
   final AndroidNotificationChannel _channel = const AndroidNotificationChannel(
-    'yorum_platformu_channel', // Kanal ID'si sabit kalmalı
+    'yorum_platformu_channel',
     'Genel Bildirimler',
     description: 'Uygulama bildirimleri',
     importance: Importance.max,
@@ -84,52 +84,75 @@ class BildirimServisi {
   );
 
   Future<void> baslat() async {
-    // İzin İste
-    await _firebaseMessaging.requestPermission(
+    // --- 1. İZİN İSTE (iOS) ---
+    NotificationSettings settings = await _firebaseMessaging.requestPermission(
       alert: true,
       badge: true,
       sound: true,
       provisional: false,
     );
 
-    // Token güncelle
+    if (settings.authorizationStatus != AuthorizationStatus.authorized &&
+        settings.authorizationStatus != AuthorizationStatus.provisional) {
+      print('❌ Kullanıcı bildirim iznini reddetti.');
+      return;
+    }
+
     await _tokeniGuncelle();
 
-    // Android Başlatma Ayarları
-    // 'notification_icon' adında transparent bir PNG'nin drawable klasöründe olduğundan emin ol.
+    // --- 2. YEREL BİLDİRİM KURULUMU ---
     const AndroidInitializationSettings initializationSettingsAndroid =
         AndroidInitializationSettings('@drawable/notification_icon');
 
-    const InitializationSettings initializationSettings =
-        InitializationSettings(android: initializationSettingsAndroid);
+    final DarwinInitializationSettings initializationSettingsDarwin =
+        DarwinInitializationSettings(
+          requestAlertPermission: true,
+          requestBadgePermission: true,
+          requestSoundPermission: true,
+        );
+
+    final InitializationSettings initializationSettings =
+        InitializationSettings(
+          android: initializationSettingsAndroid,
+          iOS: initializationSettingsDarwin,
+        );
 
     await _localNotificationsPlugin.initialize(initializationSettings);
 
-    // Kanalı Oluştur
-    await _localNotificationsPlugin
-        .resolvePlatformSpecificImplementation<
-          AndroidFlutterLocalNotificationsPlugin
-        >()
-        ?.createNotificationChannel(_channel);
+    // Kanal Oluştur (Android)
+    if (Platform.isAndroid) {
+      await _localNotificationsPlugin
+          .resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin
+          >()
+          ?.createNotificationChannel(_channel);
+    }
 
-    // Arka Plan Handler'ı Ata
+    // iOS Ön Plan Ayarı
+    await _firebaseMessaging.setForegroundNotificationPresentationOptions(
+      alert: true,
+      badge: true,
+      sound: true,
+    );
+
+    // Handler'lar
     FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
 
-    // ÖN PLAN (FOREGROUND) DİNLEYİCİSİ
     FirebaseMessaging.onMessage.listen((RemoteMessage message) {
-      // Sadece bildirim içeriği varsa işlem yap
       if (message.notification != null) {
-        // Ön planda olduğumuz için bildirimi manuel gösteriyoruz
-        _yerelBildirimGoster(message);
-
-        // Veritabanına da kaydediyoruz
+        // Ön planda olduğumuz için manuel gösteriyoruz
+        if (Platform.isAndroid) {
+          _yerelBildirimGoster(message);
+        }
+        // Kaydet
         _bildirimiVeritabaninaKaydet(message);
       }
     });
   }
 
+  // --- YEREL BİLDİRİM GÖSTERME FONKSİYONU ---
+  // (Bu fonksiyon Sınıfın İÇİNDE olmalı ki _localNotificationsPlugin'e erişebilsin)
   Future<void> _yerelBildirimGoster(RemoteMessage message) async {
-    // Resim varsa işle
     String? imageUrl =
         message.notification?.android?.imageUrl ?? message.data['image'];
     ByteArrayAndroidBitmap? bigPicture;
@@ -143,7 +166,6 @@ class BildirimServisi {
       }
     }
 
-    // Stil ayarla (Resimli veya Büyük Metinli)
     StyleInformation? styleInformation;
     if (bigPicture != null) {
       styleInformation = BigPictureStyleInformation(
@@ -158,7 +180,6 @@ class BildirimServisi {
       );
     }
 
-    // BİLDİRİMİ GÖSTER
     await _localNotificationsPlugin.show(
       message.hashCode,
       message.notification?.title,
@@ -168,15 +189,16 @@ class BildirimServisi {
           _channel.id,
           _channel.name,
           channelDescription: _channel.description,
-          // --- İKON AYARLARI BURADA ---
-          icon: '@drawable/notification_icon', // Şeffaf PNG olmalı
-          // İKON RENGİNİ KIRMIZI YAPIYORUZ
-          // Android bu rengi ikonu boyamak için kullanır.
-          color: const Color(0xFFFF0000), // Kırmızı (#FF0000)
-          // ----------------------------
+          icon: '@drawable/notification_icon',
+          color: const Color(0xFFFF0000), // İkon Rengi
           importance: Importance.max,
           priority: Priority.high,
           styleInformation: styleInformation,
+        ),
+        iOS: const DarwinNotificationDetails(
+          presentAlert: true,
+          presentBadge: true,
+          presentSound: true,
         ),
       ),
     );

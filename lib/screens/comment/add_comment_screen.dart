@@ -32,6 +32,7 @@ class _YorumEkleSayfasiState extends State<YorumEkleSayfasi> {
 
   Future<void> _resimSec() async {
     final picker = ImagePicker();
+    // pickImage (Tekli) kullanıyoruz
     final XFile? image = await picker.pickImage(source: ImageSource.gallery);
 
     if (image != null) {
@@ -47,7 +48,7 @@ class _YorumEkleSayfasiState extends State<YorumEkleSayfasi> {
     });
   }
 
-  // --- ROZET KONTROLÜ (DÜZELTİLDİ) ---
+  // --- ROZET KONTROLÜ (AYNI KALDI) ---
   Future<void> _rozetKontrolu(String uid, BuildContext dialogContext) async {
     try {
       var userDoc = await FirebaseFirestore.instance
@@ -97,12 +98,11 @@ class _YorumEkleSayfasiState extends State<YorumEkleSayfasi> {
             .doc(uid)
             .update({'rozetler': FieldValue.arrayUnion(kazanilanYeniRozetler)});
 
-        // Dialog gösterme (Düzeltildi)
         if (dialogContext.mounted) {
           var ilkRozetBilgisi = kRozetler[kazanilanYeniRozetler.first];
           await showDialog(
             context: dialogContext,
-            barrierDismissible: false, // Kullanıcı butona basmak zorunda kalsın
+            barrierDismissible: false,
             builder: (ctx) => AlertDialog(
               title: const Text("TEBRİKLER! 🎉", textAlign: TextAlign.center),
               content: Column(
@@ -142,6 +142,9 @@ class _YorumEkleSayfasiState extends State<YorumEkleSayfasi> {
   }
 
   Future<void> _yorumuKaydet() async {
+    // Klavye Açıksa Kapat
+    FocusScope.of(context).unfocus();
+
     if (_icerikC.text.isEmpty || _yildiz == 0) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("Lütfen puan ve yorum yazın.")),
@@ -169,8 +172,7 @@ class _YorumEkleSayfasiState extends State<YorumEkleSayfasi> {
         'baslik': widget.otomatikBaslik,
         'icerik': _icerikC.text,
         'puan': _yildiz,
-        'resimUrl': yuklenenResimLink, // Tek resim
-        // 'resimUrls' alanını artık kullanmıyoruz/boş geçiyoruz
+        'resimUrl': yuklenenResimLink,
         'yazar': user?.displayName ?? user?.email,
         'yazarResim': user?.photoURL,
         'yazarId': user?.uid,
@@ -202,7 +204,6 @@ class _YorumEkleSayfasiState extends State<YorumEkleSayfasi> {
         }
       }
 
-      // 4. Rozet Kontrolü (BURADA BEKLETİYORUZ)
       if (user != null) {
         // Context'i kaybetmemek için burada gönderiyoruz
         await _rozetKontrolu(user.uid, context);
@@ -233,131 +234,147 @@ class _YorumEkleSayfasiState extends State<YorumEkleSayfasi> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: Text(widget.otomatikBaslik ?? "Yorum Yap")),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(25),
-        child: Column(
-          children: [
-            const Text(
-              "Puanın Kaç?",
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-            ),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: List.generate(
-                5,
-                (i) => IconButton(
-                  onPressed: () => setState(() => _yildiz = i + 1),
-                  icon: Icon(
-                    i < _yildiz ? Icons.star : Icons.star_border,
-                    color: Colors.orange,
-                    size: 40,
+    // GESTURE DETECTOR: Boşluğa basınca klavye kapansın
+    return GestureDetector(
+      onTap: () => FocusScope.of(context).unfocus(),
+      child: Scaffold(
+        appBar: AppBar(title: Text(widget.otomatikBaslik ?? "Yorum Yap")),
+        body: SingleChildScrollView(
+          padding: const EdgeInsets.all(25),
+          child: Column(
+            children: [
+              const Text(
+                "Puanın Kaç?",
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              ),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: List.generate(
+                  5,
+                  (i) => IconButton(
+                    onPressed: () => setState(() => _yildiz = i + 1),
+                    icon: Icon(
+                      i < _yildiz ? Icons.star : Icons.star_border,
+                      color: Colors.orange,
+                      size: 40,
+                    ),
                   ),
                 ),
               ),
-            ),
-            const SizedBox(height: 20),
-            TextField(
-              controller: TextEditingController(text: widget.otomatikBaslik),
-              readOnly: true,
-              decoration: const InputDecoration(
-                border: OutlineInputBorder(),
-                labelText: "Mekan",
-                filled: true,
-                fillColor: Colors.white70,
-              ),
-            ),
-            const SizedBox(height: 20),
-            TextField(
-              controller: _icerikC,
-              maxLines: 4,
-              decoration: const InputDecoration(
-                border: OutlineInputBorder(),
-                labelText: "Yorumun",
-              ),
-            ),
-            const SizedBox(height: 20),
-
-            // --- FOTOĞRAF SEÇME ALANI (TEKLİ) ---
-            GestureDetector(
-              onTap: _resimSec,
-              child: Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(15),
-                decoration: BoxDecoration(
-                  color: Colors.grey[100],
-                  borderRadius: BorderRadius.circular(15),
-                  border: Border.all(color: Colors.grey[300]!),
-                ),
-                child: Column(
-                  children: [
-                    const Icon(Icons.add_a_photo, color: Colors.grey, size: 30),
-                    Text(
-                      _secilenResim == null
-                          ? "Fotoğraf Ekle"
-                          : "Fotoğraf Seçildi (Değiştirmek için tıkla)",
-                    ),
-                  ],
+              const SizedBox(height: 20),
+              TextField(
+                controller: TextEditingController(text: widget.otomatikBaslik),
+                readOnly: true,
+                decoration: const InputDecoration(
+                  border: OutlineInputBorder(),
+                  labelText: "Mekan",
+                  filled: true,
+                  fillColor: Colors.white70,
                 ),
               ),
-            ),
+              const SizedBox(height: 20),
 
-            // Seçilen Resmin Önizlemesi
-            if (_secilenResim != null)
-              Padding(
-                padding: const EdgeInsets.only(top: 10),
-                child: Stack(
-                  alignment: Alignment.topRight,
-                  children: [
-                    Container(
-                      height: 200,
+              // --- GÜNCELLENEN YORUM ALANI (BİTTİ BUTONU İLE) ---
+              TextField(
+                controller: _icerikC,
+                maxLines: 4,
+                textInputAction:
+                    TextInputAction.done, // Klavye butonu "Bitti" olur
+                onEditingComplete: () =>
+                    FocusScope.of(context).unfocus(), // Basınca kapatır
+                decoration: const InputDecoration(
+                  border: OutlineInputBorder(),
+                  labelText: "Yorumun",
+                ),
+              ),
+
+              // ---------------------------------------------------
+              const SizedBox(height: 20),
+
+              // --- FOTOĞRAF SEÇME ALANI (TEKLİ) ---
+              GestureDetector(
+                onTap: _resimSec,
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(15),
+                  decoration: BoxDecoration(
+                    color: Colors.grey[100],
+                    borderRadius: BorderRadius.circular(15),
+                    border: Border.all(color: Colors.grey[300]!),
+                  ),
+                  child: Column(
+                    children: [
+                      const Icon(
+                        Icons.add_a_photo,
+                        color: Colors.grey,
+                        size: 30,
+                      ),
+                      Text(
+                        _secilenResim == null
+                            ? "Fotoğraf Ekle"
+                            : "Fotoğraf Seçildi (Değiştirmek için tıkla)",
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
+              // Seçilen Resmin Önizlemesi
+              if (_secilenResim != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 10),
+                  child: Stack(
+                    alignment: Alignment.topRight,
+                    children: [
+                      Container(
+                        height: 200,
+                        width: double.infinity,
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(10),
+                          image: DecorationImage(
+                            image: FileImage(_secilenResim!),
+                            fit: BoxFit.cover,
+                          ),
+                        ),
+                      ),
+                      GestureDetector(
+                        onTap: _resimSil,
+                        child: Container(
+                          margin: const EdgeInsets.all(5),
+                          padding: const EdgeInsets.all(5),
+                          decoration: const BoxDecoration(
+                            color: Colors.red,
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(
+                            Icons.close,
+                            color: Colors.white,
+                            size: 20,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+              // -----------------------------------------
+              const SizedBox(height: 30),
+              _yukleniyor
+                  ? const CircularProgressIndicator()
+                  : SizedBox(
                       width: double.infinity,
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(10),
-                        image: DecorationImage(
-                          image: FileImage(_secilenResim!),
-                          fit: BoxFit.cover,
+                      height: 50,
+                      child: ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: kAnaRenk,
+                          foregroundColor: Colors.white,
                         ),
+                        onPressed: _yorumuKaydet,
+                        child: const Text("GÖNDER"),
                       ),
                     ),
-                    GestureDetector(
-                      onTap: _resimSil,
-                      child: Container(
-                        margin: const EdgeInsets.all(5),
-                        padding: const EdgeInsets.all(5),
-                        decoration: const BoxDecoration(
-                          color: Colors.red,
-                          shape: BoxShape.circle,
-                        ),
-                        child: const Icon(
-                          Icons.close,
-                          color: Colors.white,
-                          size: 20,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-
-            // -----------------------------------------
-            const SizedBox(height: 30),
-            _yukleniyor
-                ? const CircularProgressIndicator()
-                : SizedBox(
-                    width: double.infinity,
-                    height: 50,
-                    child: ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: kAnaRenk,
-                        foregroundColor: Colors.white,
-                      ),
-                      onPressed: _yorumuKaydet,
-                      child: const Text("GÖNDER"),
-                    ),
-                  ),
-          ],
+            ],
+          ),
         ),
       ),
     );
