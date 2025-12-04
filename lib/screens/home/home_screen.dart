@@ -38,7 +38,10 @@ class _AnaSayfaState extends State<AnaSayfa> {
   Future<void> _verileriGuncelle() async {
     if (!mounted) return;
     await FirebaseAuth.instance.currentUser?.reload();
-    await BildirimServisi().baslat();
+
+    // Bildirim servisi zaten main.dart içinde başlatılıyor.
+    // Buradaki çağrı silindi (Çift kaydı önlemek için).
+
     if (mounted) setState(() => _kullanici = FirebaseAuth.instance.currentUser);
   }
 
